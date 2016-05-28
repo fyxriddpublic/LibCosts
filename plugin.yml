@@ -1,0 +1,4 @@
+﻿name: LibCosts
+main: com.fyxridd.lib.costs.CostsPlugin
+version: 0.1.0
+depend: [LibCore, LibItems]
