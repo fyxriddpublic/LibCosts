@@ -1,9 +1,19 @@
 package com.fyxridd.lib.costs.api;
 
 import com.fyxridd.lib.costs.CostsPlugin;
+import com.fyxridd.lib.costs.api.model.CosterFactory;
 import org.bukkit.entity.Player;
 
 public class CostsApi {
+    /**
+     * 注册花费器工厂
+     * @param key 键,相当于配置中的键
+     * @param costerFactory 花费器工厂
+     */
+    public static void registerCostsFactory(String key, CosterFactory costerFactory) {
+        CostsPlugin.instance.getCostsManager().registerCostsFactory(key, costerFactory);
+    }
+
     /**
      * 重新读取花费配置
      * 会读取'插件名/costs.yml'文件
