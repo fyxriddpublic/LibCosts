@@ -1,21 +1,20 @@
 package com.fyxridd.lib.costs.manager;
 
-import com.fyxridd.item.kind.api.model.KindInfo;
 import com.fyxridd.lib.core.api.CoreApi;
 import com.fyxridd.lib.core.api.EcoApi;
 import com.fyxridd.lib.core.api.ItemApi;
-import com.fyxridd.lib.core.api.event.ReloadConfigEvent;
-import com.fyxridd.lib.core.api.inter.FancyMessage;
+import com.fyxridd.lib.core.api.UtilApi;
+import com.fyxridd.lib.core.api.config.ConfigApi;
+import com.fyxridd.lib.core.api.config.Setter;
+import com.fyxridd.lib.core.api.fancymessage.FancyMessage;
 import com.fyxridd.lib.costs.CostsPlugin;
+import com.fyxridd.lib.costs.config.LangConfig;
+import com.fyxridd.lib.costs.model.CostInfo;
 import com.fyxridd.lib.items.api.ItemsApi;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.MemorySection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
-import org.bukkit.event.Listener;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
@@ -25,27 +24,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class CostsManager implements Listener{
-    public static CostsMain instance;
-    private String savePath;
+public class CostsManager {
+    private LangConfig langConfig;
 
     //插件名 类型名 花费信息
-    private HashMap<String, HashMap<String, CostInfo>> costsHash = new HashMap<>();
+    private Map<String, HashMap<String, CostInfo>> costsHash = new HashMap<>();
 
 	public CostsManager() {
-        instance = this;
-        savePath = CostsPlugin.dataPath+File.separator+"costs.yml";
-        //初始化配置
-        initConfig();
-		//读取配置文件
-		loadConfig();
-		//注册事件
-		Bukkit.getPluginManager().registerEvents(this, CostsPlugin.instance);
-	}
-
-	@EventHandler(priority=EventPriority.LOW)
-	public void onReloadConfig(ReloadConfigEvent e) {
-		if (e.getPlugin().equals(CostsPlugin.pn)) loadConfig();
+        //添加配置监听
+        ConfigApi.addListener(CostsPlugin.instance.pn, LangConfig.class, new Setter<LangConfig>() {
+            @Override
+            public void set(LangConfig value) {
+                langConfig = value;
+            }
+        });
 	}
 
     /**
@@ -191,28 +183,53 @@ public class CostsManager implements Listener{
         return result;
     }
 
+    /**
+     * @see com.fyxridd.lib.costs.api.CostsApi#reloadCosts(String)
+     */
     public void reloadCosts(String plugin) {
         if (plugin == null) return;
-        reloadCosts(plugin, CoreApi.loadConfigByUTF8(new File(CoreApi.pluginPath, plugin+"/costs.yml")));
-    }
-
-    public void reloadCosts(String plugin, File file) {
-        if (plugin == null || file == null) return;
-        reloadCosts(plugin, CoreApi.loadConfigByUTF8(file));
-    }
-
-    public void reloadCosts(String plugin, YamlConfiguration config) {
-        if (plugin == null || config == null) return;
-
+        YamlConfiguration config = UtilApi.loadConfigByUTF8(new File(CoreApi.pluginPath, plugin+File.separator+"costs.yml"));
+        if (config == null) return;
         //重置
         costsHash.put(plugin, new HashMap<String, CostInfo>());
         //重新读取
-        Map<String, Object> map = config.getValues(false);
-        if (map == null) {
-            ConfigApi.log(CostsPlugin.pn, "load costs error");
-            return;
+        for (String key:config.getValues(false).keySet()) {
+            //money
+            int money = config.getInt(key+".money", 0);
+            if (money < 0) {
+                ConfigApi.log(CostsPlugin.pn, "load costs key '"+key+"' money error");
+                money = 0;
+            }
+            //exp
+            int exp = config.getInt(key+".exp", 0);
+            if (exp < 0) {
+                ConfigApi.log(CostsPlugin.pn, "load costs key '"+key+"' exp error");
+                exp = 0;
+            }
+            //level
+            int level = config.getInt(key+".level", 0);
+            if (level < 0) {
+                ConfigApi.log(CostsPlugin.pn, "load costs key '"+key+"' level error");
+                level = 0;
+            }
+            //items
+            List<ItemInfo> items = new ArrayList<>();
+            MemorySection ms = (MemorySection)config.get(key+".items");
+            if (ms != null) {
+                for (String key:ms.getValues(false).keySet()) {
+                    MemorySection itemMs = (MemorySection) ms.get(key);
+                    ItemInfo itemInfo = null;
+                    if (itemMs.contains("exact")) {
+                        itemInfo = new ItemInfo(ItemsApi.loadItemStack((MemorySection) itemMs.get("exact")), itemMs.getInt("amount", 1));
+                    }else if (itemMs.contains("kind")) {
+                        itemInfo = new ItemInfo(itemMs.getString("kind"), itemMs.getInt("amount", 1));
+                    }
+                    if (itemInfo != null) items.add(itemInfo);
+                }
+            }
+            //添加
+            costsHash.get(plugin).put(key, new CostInfo(money, exp, level, items));
         }
-        for (String key:map.keySet()) loadCost(plugin, config, key);
     }
 
     /**
@@ -260,61 +277,7 @@ public class CostsManager implements Listener{
         return false;
     }
 
-    /**
-     * 读取指定的花费配置
-     * @param plugin 插件名,不为null
-     * @param config 配置,不为null
-     * @param type 类型,不为null
-     */
-    private void loadCost(String plugin, YamlConfiguration config, String type) {
-        //money
-        int money = config.getInt(type+".money", 0);
-        if (money < 0) {
-            ConfigApi.log(CostsPlugin.pn, "load costs type '"+type+"' money error");
-            money = 0;
-        }
-        //exp
-        int exp = config.getInt(type+".exp", 0);
-        if (exp < 0) {
-            ConfigApi.log(CostsPlugin.pn, "load costs type '"+type+"' exp error");
-            exp = 0;
-        }
-        //level
-        int level = config.getInt(type+".level", 0);
-        if (level < 0) {
-            ConfigApi.log(CostsPlugin.pn, "load costs type '"+type+"' level error");
-            level = 0;
-        }
-        //items
-        List<ItemInfo> items = new ArrayList<>();
-        MemorySection ms = (MemorySection)config.get(type+".items");
-        if (ms != null) {
-            for (String key:ms.getValues(false).keySet()) {
-                MemorySection itemMs = (MemorySection) ms.get(key);
-                ItemInfo itemInfo = null;
-                if (itemMs.contains("exact")) {
-                    itemInfo = new ItemInfo(ItemsApi.loadItemStack((MemorySection) itemMs.get("exact")), itemMs.getInt("amount", 1));
-                }else if (itemMs.contains("kind")) {
-                    itemInfo = new ItemInfo(itemMs.getString("kind"), itemMs.getInt("amount", 1));
-                }
-                if (itemInfo != null) items.add(itemInfo);
-            }
-        }
-        //添加
-        costsHash.get(plugin).put(type, new CostInfo(money, exp, level, items));
-    }
-
-    private void initConfig() {
-        ConfigApi.register(CostsPlugin.file, CostsPlugin.dataPath, CostsPlugin.pn);
-        ConfigApi.loadConfig(CostsPlugin.pn);
-    }
-
-	private void loadConfig() {
-        //重新读取花费配置
-		reloadCosts(CostsPlugin.pn, new File(savePath));
-	}
-
-    private static FancyMessage get(int id, Object... args) {
-        return FormatApi.get(CostsPlugin.pn, id, args);
+    private FancyMessage get(String player, int id, Object... args) {
+        return langConfig.getLang().get(player, id, args);
     }
 }

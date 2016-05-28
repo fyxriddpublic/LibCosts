@@ -1,6 +1,6 @@
 package com.fyxridd.lib.costs.api;
 
-import com.fyxridd.lib.costs.CostsMain;
+import com.fyxridd.lib.costs.CostsPlugin;
 import org.bukkit.entity.Player;
 
 public class CostsApi {
@@ -9,7 +9,7 @@ public class CostsApi {
      * 会读取'插件名/costs.yml'文件
      */
     public static void reloadCosts(String plugin) {
-        CostsMain.instance.reloadCosts(plugin);
+        CostsPlugin.instance.getCostsManager().reloadCosts(plugin);
     }
 
     /**
@@ -22,6 +22,6 @@ public class CostsApi {
      * @return 花费是否完全成功
      */
     public static boolean cost(Player p, String plugin, String type, boolean force, boolean tip){
-        return CostsMain.instance.cost(p, plugin, type, force, tip);
+        return CostsPlugin.instance.getCostsManager().cost(p, plugin, type, force, tip);
     }
 }
