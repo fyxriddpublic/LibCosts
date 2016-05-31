@@ -18,8 +18,7 @@ public class MoneyCoster implements Coster{
     public CheckCostResult checkCost(String plugin, Player p) {
         boolean result = true;
         if (cost > 0) {
-            int hasMoney = (int) EcoApi.get(p.getName());
-            if (hasMoney < cost) result = false;
+            if ((int) EcoApi.get(p.getName()) < cost) result = false;
         }
         String tmp = CostsPlugin.instance.getCostsManager().get(p.getName(), result?1330:1340).getText();
         String tip = CostsPlugin.instance.getCostsManager().get(p.getName(), 2000, cost, tmp).getText();
